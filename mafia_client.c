@@ -10,11 +10,11 @@
 
 int main(int argc, char **argv)
 {
-	if (argc != 4) {
-		printf("Usage: UDP_CLIENT [address] [port] [msg_type] (0 for \"Hello!\", 1 for \"Quit\")\n");
+	if (argc != 3) {
+		printf("Usage: UDP_CLIENT [address] [port]\n");
 		return -2;
 	}
-	int socket_fd, ret;
+	int socket_fd;
 	size_t len;
 	struct sockaddr_in target;
 	socklen_t target_size;
@@ -33,27 +33,26 @@ int main(int argc, char **argv)
 	target.sin_addr.s_addr = inet_addr(argv[1]);
 	target_size = sizeof(target);
 	len = sizeof(buf);
-	if (atoi(argv[3])) {
-		sprintf(buf, "Quit");
-	} else {
-		sprintf(buf, "Hello!");
-	}
+	// Здесь может быть ваше меню
 
-	printf("%s\n", buf);
+	printf("Enter your name: "); //Поле ввода имени появляется после нажатия Play
+	scanf("%s", buf);
+	printf("Your name is %s\n", buf);
 
 
-	ret = sendto(socket_fd, buf, len, MSG_CONFIRM, (struct sockaddr*)&target, target_size);
-	if (ret == -1) {
+	if (sendto(socket_fd, buf, len, 0, (struct sockaddr*)&target, target_size) == -1) {
 		perror("send");
 		return -3;
 	}
 
-	ret = recvfrom(socket_fd, buf, len, 0, (struct sockaddr*)&target, &target_size);
-	if (ret == -1) {
+	// Окно "Waiting" и ожидание ответа от сервера
+	printf("Waiting...\n");
+	if (recvfrom(socket_fd, buf, len, 0, (struct sockaddr*)&target, &target_size) == -1) {
 		perror("recv");
 		return -3;
 	}
-	printf("%s\n", buf);
+	printf("The GAME HAS BEGUN!\n");
+
 
 	close(socket_fd);
 	return 0;
