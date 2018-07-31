@@ -7,22 +7,9 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <stdlib.h>
-#include <assert.h>
-#include <signal.h>
-#include <sys/time.h>
 
-#define MSGTYPE_CHAT 0
-#define MSGTYPE_VOTE 1
-#define MSGTYPE_DAYNIGHT 2
-#define MSGTYPE_VOTERESULT 3
-#define MSGTYPE_NICKNAME 4
-#define MSGTYPE_INFO 5
-#define MSGTYPE_END 6
-#define MSGTYPE_OTHER 7
+#include "Mafia.h"
+
 
 struct sockaddr_in target;
 socklen_t target_size;
@@ -42,10 +29,6 @@ char my_role, my_number;
 //  //exit(1);
 //}
 
-struct message {
-		int type;
-		char buf[256];
-};
 
 int send_msg(int msgtype, char *str) {
 	if ((str == NULL) || (strlen(str) > 256)) {
@@ -116,7 +99,7 @@ int main(int argc, char *argv) {
 	printf("You are %s\n",buf);
 	printf("The GAME HAS BEGUN!\n");
 	printf("Enter message: ");
-	while (!end) {
+	do {
 		recvfrom(sock_fd, buf, sizeof(buf), 0, NULL, NULL);
 		msg = buf;
 		switch (msg->type) {
@@ -127,13 +110,20 @@ int main(int argc, char *argv) {
 				//gtk_insert в окно с чатом
 			case MSGTYPE_VOTERESULT:
 				alive[msg->buf[0]] = 0;
-				
+				break;
+			case MSGTYPE_INFO:
+				my_number = msg->buf[0];
+				my_role = msg->buf[1];
+				break;
+			case MSGTYPE_END:
+				end = 0; // Конец игры, объявляются победители
+				break;
 			default:
 				break;
 
 		}
 
-	}
+	} while (!end);
 
 	close(sock_fd);
 	return 0;
