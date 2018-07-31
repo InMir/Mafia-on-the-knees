@@ -14,123 +14,127 @@
 #include <assert.h>
 #include <signal.h>
 #include <sys/time.h>
-int flag1 = 0;
-char buf[16] = {0},buf1[16] = {0};
- void handler(int signo)
- {
-  char msg[] = "\n\nГолосование, введите номер игрока, которого хотите убить: ";
-  assert(signo == SIGALRM);
-  write(2, msg, sizeof(msg) - 1);
-  flag1=1;
-  //exit(1);
- }
 
-int main()
-{
+#define MSGTYPE_CHAT 0
+#define MSGTYPE_VOTE 1
+#define MSGTYPE_DAYNIGHT 2
+#define MSGTYPE_VOTERESULT 3
+#define MSGTYPE_NICKNAME 4
+#define MSGTYPE_INFO 5
+#define MSGTYPE_END 6
+#define MSGTYPE_OTHER 7
 
+struct sockaddr_in target;
+socklen_t target_size;
+int sock_fd;
 
-	int socket_fd,flag=1,flag2=1,vote;
+int daytime = 0; //0 - ночь, 1 - день
+int end = 0; // 0 - игра идёт, 1 - конец игры
+char buf[260], nickname[16];
+char alive[6]; // Массив показателей жизненного состояния жителей (1 - жив, 0 - мертв)
+char my_role, my_number;
+
+//void handler(int signo) {
+//	char msg[] = "\n\nГолосование, введите номер игрока, которого хотите убить: ";
+//	assert(signo == SIGALRM);
+//  write(2, msg, sizeof(msg) - 1);
+//  flag1 = 1;
+//  //exit(1);
+//}
+
+struct message {
+		int type;
+		char buf[256];
+};
+
+int send_msg(int msgtype, char *str) {
+	if ((str == NULL) || (strlen(str) > 256)) {
+		return -1;
+	}
+	char localbuf[260];
+	struct message *msg = localbuf;
+	msg->type = msgtype;
+	memcpy(msg->buf, str, 256);
+	return sendto(sock_fd, localbuf, sizeof(localbuf), 0, (struct sockaddr*)&target, target_size);
+}
+
+int main(int argc, char *argv) {
+	if (argc != 3) {
+		printf("Usage: ./MAFIA_client [ip] [port]\n");
+		return 0;
+	}
+	int flag = 1, flag2 = 1, vote;
 	size_t len;
-	struct sockaddr_in target;
-	socklen_t target_size;
+
+	for (int i = 0; i < 6; ++i) {		// Заполенеие массива alive единицами,
+		alive[i] = 1;									// так как изначально все жители живы
+	}
+
+	struct message *msg;
 
 	 //,*address="10.0.2.15";
 
 	//таймер
+/*
 	struct itimerval tval;
-  	char string[BUFSIZ];
-  	timerclear(&tval.it_interval); /* нулевой интервал означает не сбрасывать таймер */
-  	timerclear(&tval.it_value);
-  	tval.it_value.tv_sec = 10; /* тайм-аут 10 секунд */
-  	(void)signal(SIGALRM, handler);
+	char string[BUFSIZ];
+  timerclear(&tval.it_interval); //нулевой интервал означает не сбрасывать таймер
+
+  timerclear(&tval.it_value);
+  tval.it_value.tv_sec = 10; //тайм-аут 10 секунд
+
+  (void)signal(SIGALRM, handler);
+*/
 
   	//сокет
-	socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (socket_fd == -1) {
+	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (sock_fd == -1) {
 		perror("socket");
 		return -1;
 	}
 	memset(&target, 0, sizeof(target));
-    target.sin_family = AF_INET;
-    target.sin_port = htons(3425);
-    target.sin_addr.s_addr = inet_addr("10.0.2.15");
+	target.sin_family = AF_INET;
+  target.sin_port = htons(atoi(argv[2]));
+	target.sin_addr.s_addr = inet_addr(argv[1]);
 	target_size = sizeof(target);
 	len = sizeof(buf);
+
+
+
+	printf("Enter your name: "); //Поле ввода имени появляется при запуске перед меню
+	scanf("%s", nickname);
+	printf("Your name is %s\n", nickname);
 	// Здесь может быть ваше меню
-	printf("Enter your name: "); //Поле ввода имени появляется после нажатия Play
-	scanf("%s", buf);
-	printf("Your name is %s\n", buf);
 
 
-	if (sendto(socket_fd, buf, len, 0, (struct sockaddr*)&target, target_size) == -1) {
-		perror("send1");
+	if (send_msg(MSGTYPE_NICKNAME, nickname) == -1) { // Отправка ника по нажатию кнопки Играть
+		perror("send_nick");
 		return -3;
 	}
-		// Окно "Waiting" и ожидание ответа от сервера
-	printf("Waiting...\n");
-	if (recvfrom(socket_fd, buf, len, 0, (struct sockaddr*)&target, &target_size) == -1) {
-		perror("recv");
-		return -3;
-	}
-	printf("You is %s\n",buf);
+
+
+	printf("You are %s\n",buf);
 	printf("The GAME HAS BEGUN!\n");
 	printf("Enter message: ");
-	while(1){ 
-		
-		if(!flag){//если получаем сообщения
-			recvfrom(socket_fd, buf, len, 0, (struct sockaddr*)&target, &target_size);
-			if(strcmp(buf,"0")==0){//червер отправляет "0", когда мафия убивает игрока
-				printf("Ты проиграл!!!");
-				close(socket_fd);
-				return 0;
-			}
-			else
-				printf("Ты жив!!!");
-		}
-		flag=0;
-		(void)setitimer(ITIMER_REAL, &tval, NULL);//включаем таймер
-		/*
-			цикл, в котором игрок отправляет сообщения в чат, попробовал через флаги проконтролировать таймер, который при истечение 
-			генерирует сигнал SIGALRM, но не получается прервать выполнение цикла, короче надо тут что-нибудь придумать с таймером, 
-			либо сделать другую альтернативу таймера
-		*/
-		while(1){
-			if(!flag1)
-			{
-				scanf("%s", buf);
-				if(!flag1){
-					if(sendto(socket_fd, buf, len, 0, (struct sockaddr*)&target, target_size) == -1) {
-						perror("send2");	
-						return -3;
-					}
-				}
-				else
-					break;
-				//puts(buf);
-			}
-			else
+	while (!end) {
+		recvfrom(sock_fd, buf, sizeof(buf), 0, NULL, NULL);
+		msg = buf;
+		switch (msg->type) {
+			case MSGTYPE_DAYNIGHT:
+				daytime = msg->buf[0]; //от сервера приходит сообщение, что изменось время суток. Чат ночью блокируется
 				break;
-			
-		}
-		if(flag1){//если время на переписку между клиентами закончилось, то игроки начинают голосовать и посылает серверу пакет vote
-			sprintf(buf1,"%s","vote");	
-			if(sendto(socket_fd, buf1, len, 0, (struct sockaddr*)&target, target_size) == -1) {
-				perror("send2");	
-				return -3;
-			}
-			//flag2=0;
-			flag1=0;
-			puts(buf1);
-		}
-		//scanf("%s", buf);
-			if(sendto(socket_fd, buf, len, 0, (struct sockaddr*)&target, target_size) == -1) {
-						perror("send2");	
-						return -3;
-					}
+			case MSGTYPE_CHAT:
+				//gtk_insert в окно с чатом
+			case MSGTYPE_VOTERESULT:
+				alive[msg->buf[0]] = 0;
+				
+			default:
+				break;
 
+		}
 
 	}
 
-	close(socket_fd);
-    return 0;
+	close(sock_fd);
+	return 0;
 }
