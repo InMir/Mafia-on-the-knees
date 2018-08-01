@@ -11,7 +11,7 @@
 #define MSGTYPE_VOTERESULT 3
 #define MSGTYPE_NICKNAME 4
 #define MSGTYPE_INFO 5
-#define MSGTYPE_STARTEND 6 // 0 - начало игры, 1 - конец игры
+#define MSGTYPE_STARTEND 6 // 0 - начало игры, 1 - конец игры (победа мирных), 2 - конец игры (победа мафии)
 #define MSGTYPE_OTHER 7
 
 #define PLAYER_NUMBER 6

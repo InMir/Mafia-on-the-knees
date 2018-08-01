@@ -1,11 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
-#include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
 #include "Mafia.h"
@@ -140,7 +137,7 @@ int main(int argc, char *argv) {
 
 		}
 
-	} while (!end);
+	} while (end == 0);
 
 	close(sock_fd);
 	return 0;

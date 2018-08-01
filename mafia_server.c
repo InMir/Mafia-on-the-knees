@@ -38,10 +38,10 @@ int main(int argc, char **argv) {
 	struct Room room;
 	struct message *msg;
 
-	int dop[PLAYER_NUMBER], vote_results[PLAYER_NUMBER];
-	int indexmax, votemax, daycount; // daycount - подсчёт дней
+	int vote_results[PLAYER_NUMBER];
+	int indexmax, votemax, daycount, mafiacount, civilcount;
 	int on = 1, i;
-	int sock_fd, ret, a, player_number, end = 0, number_votes = 0, b;
+	int sock_fd, a, end = 0;
 	size_t len;
 
 	struct Client *sender;
@@ -243,13 +243,17 @@ int main(int argc, char **argv) {
 		/*
 		 * Опознание трупа (Алгоритм влоб, переделать)
 		 * */
-		indexmax = -1;
-		votemax = -1;
+		indexmax = votemax = -1;
 		for (i = 0; i < room.count; ++i) {
 			if (vote_results[i] > votemax) {
 				votemax = vote_results[i];
 				indexmax = i;
 			}
+		}
+
+		if (room.clients[indexmax].role == 2) {
+			end = 1;
+			break;
 		}
 
 		/*
@@ -261,6 +265,8 @@ int main(int argc, char **argv) {
 		for (i = 0; i < room.count; ++i) {
 			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 		}
+
+		room.clients[indexmax].status = 0;
 
 		/*
 		 * Отправка всем игрокам сообщение о начале голосования (изменения времени суток)
@@ -294,8 +300,7 @@ int main(int argc, char **argv) {
 		/*
 		 * Опознание трупа (Алгоритм влоб, переделать)
 		 * */
-		indexmax = -1;
-		votemax = -1;
+		indexmax = votemax = -1;
 		for (i = 0; i < room.count; ++i) {
 			if (vote_results[i] > votemax) {
 				votemax = vote_results[i];
@@ -344,74 +349,38 @@ int main(int argc, char **argv) {
 		msg->type = MSGTYPE_VOTERESULT;
 		msg->buf[0] = indexmax;
 		for (i = 0; i < room.count; ++i) {
-			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
 		}
 
-		//TODO: Сделать в этом цикле проверку на окончание игры (END = 1) и отправить всем сообщение об окончании игры
-		// Проверка будет заключаться в проверке, не умерла ли мафия после дневного голосования (победа мирных)
-		// 																				или не остались ли один мирный житель и одна мафия (победа мафии)
+		/*
+		 * Проверяет в конце дня состояние игры, если остался 1х1, то побеждает мафия
+		 * */
+		mafiacount = civilcount = 0;
+		for (i = 0; i < room.count; ++i) {
+			if (room.clients[i].status == 1) {
+				if (room.clients[i].role == 2) {
+					mafiacount++;
+				} else {
+					civilcount++;
+				}
+			}
+		}
+		if (mafiacount == civilcount) {
+			end = 2;
+		}
 
+	} while (end == 0);
 
-
-
-//		printf("\nПросыпается город:\n");
-//		if(!flag){//если отправляем сообщение клиенту
-//			for(i=0;i<PLAYER_NUMBER;i++){
-//				if(room.clients[i].status==0){
-//					printf("\nИгрок под номером %d убит\n",i);
-//					sprintf(buf,"%s","0");
-//					sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
-//				}
-//				sprintf(buf,"%s","ыва");
-//				sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
-//			}
-//				if(strcmp(room.clients[b].role,"Мафия")==0){
-//					printf("\nПобеда, мафия убита!!!\n");
-//					break;
-//				}
-//		}
-//		flag=0;
-//		printf("\nЧат:\n");
-//		while (1){ // Цикл принятия 6 имён
-//			memset(buf, 0, len);
-//			memset(&target, 0, target_size);
-//			printf("vote");
-//			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size); // Получение имени
-//			//printf("vote1");
-//				if(strcmp(buf,"vote")==0){//прием голосов
-//					printf("vote");
-//					for(i=0;i<PLAYER_NUMBER;i++)
-//					{
-//						recvfrom(sock_fd, buf1, len, 0, (struct sockaddr *) &target, &target_size);
-//						result_votes[i] = atoi(buf1);
-//					}
-//					printf("Убит игрок под номером:");
-//					for(i=0;i<PLAYER_NUMBER;i++)
-//					{
-//						printf("%d\n", result_votes[i]);
-//					}
-//					printf("222323");
-//
-//
-//				}
-//				else{
-//					printf("%s\n", buf);
-//				}
-//		}
-//		printf("\nГород засыпает, просыпается мафия\n");
-//		printf("\nМафия убивает ирока под номером: ");
-//		scanf("%d", &a);
-//		room.clients[a].status=0;
-//		printf("\nМафия  засыпает, просыпается комиссар\n");
-//		printf("\nКомиссар проверяет ирока под номером: ");
-//		scanf("%d", &b);
-//		printf("\nКомиссар засыпает:\n");
-//		// Запуск игры
-	} while (!end);
-	close(sock_fd);
 	/*
-	не добавил правило: Поскольку ночью мафия промахнуться не может, 
-	т.к. выборка идет только из мирных, когда в игре остается 1х1 мафия выигрывает
-	*/
+	 * Отправка всем игрокам сообщение, что игра закончилась, победили те
+	 * */
+	memset(buf, 0, len);
+	msg->type = MSGTYPE_STARTEND;
+	msg->buf[0] = end;
+	for (i = 0; i < room.count; ++i) {
+		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+	}
+
+	close(sock_fd);
 	return 0;
 }
