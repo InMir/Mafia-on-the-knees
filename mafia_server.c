@@ -5,20 +5,26 @@
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <time.h>
-#include <assert.h>
-#include <signal.h>
-#include <sys/time.h>
 
 #include "Mafia.h"
 
+struct itimerval tval;
+
+int chatflag;
+
+void handler(int signo) {
+	assert(signo == SIGALRM);
+	chatflag = 0;
+}
+
 struct Client { 			// Структура, описывающая клиента
-		char name[16];		// Имя клиента, которое он отправляет
+		char name[NICK_LEN];		// Имя клиента, которое он отправляет
 		char role;
 		int status;				// 0 - мертв, 1 - жив
 		struct sockaddr_in target;
 };
 
-struct Lobby {
+struct Room {
 		uint8_t count;
 		struct Client clients[6];
 };
@@ -29,28 +35,26 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	int dop[PLAYER_NUMBER], j;
-	int k, z, max, daycount; // daycount - подсчёт дней
-	struct Lobby lobby;
+	struct Room room;
 	struct message *msg;
 
-	int sock_fd, ret, a, player_number, flag = 1, number_votes = 0, b, result_votes[6];
+	int dop[PLAYER_NUMBER], vote_results[PLAYER_NUMBER];
+	int indexmax, votemax, daycount; // daycount - подсчёт дней
+	int on = 1, i;
+	int sock_fd, ret, a, player_number, end = 0, number_votes = 0, b;
 	size_t len;
 
-	char buf[260], number[3] = {PLAYER_NUMBER - 2,1,1};
+	struct Client *sender;
+
+	char buf[260], number[3] = {PLAYER_NUMBER - 2,1,1}, tempmsg[256];
 	len = sizeof(buf);
 	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	int on = 1, i;
 	struct sockaddr_in target, server;
 	srand(time(NULL));
 	socklen_t target_size = sizeof(target), server_size = sizeof(server);
 
-//	struct itimerval tval;
-//  	char string[BUFSIZ];
-//  	timerclear(&tval.it_interval); /* нулевой интервал означает не сбрасывать таймер */
-// 	timerclear(&tval.it_value);
-//  	tval.it_value.tv_sec = 3;
-//  	(void)signal(SIGALRM, handler);
+	(void)signal(SIGALRM, handler);
+//	char string[BUFSIZ];
 
 
 	memset(&server, 0, server_size);
@@ -70,15 +74,17 @@ int main(int argc, char **argv) {
 		return -3;
 	}
 
+	msg = buf;
 
-	while (lobby.count < PLAYER_NUMBER)	{ // Цикл принятия 6 имён
+	while (room.count < PLAYER_NUMBER)	{ // Цикл принятия 6 имён
 		memset(buf, 0, len);
 		memset(&target, 0, target_size);
-		do { // Принимаются и игнорируются все сообщения, кроме типа MSGTYPE_NICKNAME
+		do { // Принимаются и игнорируются все сообщения, кроме типа MSGTYPE_NICKNAME (подключившиеся клиенты могут спамить нажатиями кнопок)
 			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size); // Получение имени
-			msg = buf;
 		} while (msg->type != MSGTYPE_NICKNAME);
-		lobby.clients[i].status = 1;
+		room.clients[room.count].status = 1;
+
+		//TODO: Оптимизировать алгоритм раздачи ролей
 		a = rand() % 3;
 		while(1) { //необходим для того, чтобы все роли были разданы, то есть пока все элементы массива не будут равны 0
 			if(number[a] > 0){
@@ -89,94 +95,319 @@ int main(int argc, char **argv) {
 				a = rand() % 3;
 		}
 
-		lobby.clients[lobby.count].role = a;//присваиваем выбранную роль для игрока, присвание идет через передачуу номера роли (0 - Мирный житель, 1 - Комиссар, 2 - Мафия)
-		strcpy(lobby.clients[lobby.count].name, msg->buf); // Копирование имени в структуру лобби
-		memcpy(&(lobby.clients[lobby.count].target), &target, target_size); // Копирование информации о пришедшем подключении (ip + port)
+		room.clients[room.count].role = a;//присваиваем выбранную роль для игрока, присвание идет через передачуу номера роли (0 - Мирный житель, 1 - Комиссар, 2 - Мафия)
+		strcpy(room.clients[room.count].name, msg->buf); // Копирование имени в структуру лобби
+		memcpy(&(room.clients[room.count].target), &target, target_size); // Копирование информации о пришедшем подключении (ip + port)
 
 		/*
 		 * Отправка оповещения о количестве подключенных в чат всем подключившимся до этого
 		*/
 		memset(buf, 0, len);
 		msg->type = MSGTYPE_CHAT;
-		sprintf(msg->buf, "%d/6...\n", lobby.count);
-		for (i = 0; i < lobby.count; ++i) {
-			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(lobby.clients[lobby.count].target), target_size);
+		sprintf(msg->buf, "%d/%d...\n", room.count, PLAYER_NUMBER);
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
 		}
-		lobby.count++;
+
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_NICKNAME;
+		for (i = 0; i < room.count; ++i) { // В этом цикле отсылаются ники подключённых подключившемуся и ник подключившегося подключённым (долше всего отправка будет отправка на 6 подключении
+			msg->buf[0] = room.count;
+			sprintf(msg->buf + 1, "%s", room.clients[room.count].name);
+			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
+			msg->buf[0] = i;
+			sprintf(msg->buf + 1, "%s", room.clients[i].name);
+			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[room.count].target), target_size);
+		} //TODO: Создать в клиенте массив из шести (включая себя) структур struct players { char name[32]; char alive; };
+
+		room.count++;
 		printf("Client connection from %s:%d - %s\n", inet_ntoa(target.sin_addr), ntohs(target.sin_port), buf);
 	}
 
-	printf("\n%d\n", lobby.count);
+	printf("\n%d\n", room.count);
 
-	for (i = 0; i < lobby.count; ++i) {
+	for (i = 0; i < room.count; ++i) {
 		memset(buf, 0, len);
 		msg->type = MSGTYPE_STARTEND;
 		msg->buf[0] = 0;
-		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(lobby.clients[i].target), target_size;
+		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 		memset(buf, 0, len);
 		msg->type = MSGTYPE_INFO; // Клиенту отправляется его номер и его роль
 		msg->buf[0] = i;
-		msg->buf[1] = lobby.clients[i].role;
-		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(lobby.clients[i].target), target_size);
+		msg->buf[1] = room.clients[i].role;
+		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 	}
 
 	daycount = 0;
 
-	while(1){
-		printf("\nПросыпается город:\n");
-		if(!flag){//если отправляем сообщение клиенту
-			for(i=0;i<PLAYER_NUMBER;i++){
-				if(lobby.clients[i].status==0){
-					printf("\nИгрок под номером %d убит\n",i);
-					sprintf(buf,"%s","0");
-					sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(lobby.clients[i].target), target_size);
+	do {
+
+		daycount++; // Счётчик дней увеличивается при наступлении нового утра
+		/*
+		 * Рассылка всем игрокам сообщение о наступлении дня
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_DAYSTATE;
+		msg->buf[0] = 0;
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+		/*
+		 * Рассылка всем игрокам сообщение в чат о дне и запуске таймера на диалог
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_CHAT;
+		sprintf(msg->buf, "[server]: День %d.\n[server]: У вас 2 минуты на разговоры.\n", daycount);
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Инициализация и запуск таймера на 2 минуты
+		 * */
+		chatflag = 1;
+		memset(&tval, 0, sizeof(tval));
+		timerclear(&tval.it_interval); /* нулевой интервал означает не сбрасывать таймер */
+		timerclear(&tval.it_value);
+		tval.it_value.tv_sec = 120;
+		(void)setitimer(ITIMER_REAL, &tval, NULL);
+
+
+		while (chatflag) {
+			/*
+			 * Приём сообщений от игроков только с меткой msgtype_chat
+			 * */
+			do {
+				recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size);
+			} while (msg->type != MSGTYPE_CHAT);
+
+			/*
+			 * Поиск отправителя в списке игроков по ip и port
+			 * */
+			strcpy(tempmsg, msg->buf);
+			sender = NULL;
+			for (i = 0; i < room.count; ++i) {
+				if ((target.sin_addr.s_addr == room.clients[i].target.sin_addr.s_addr)
+						|| (target.sin_port == room.clients[i].target.sin_port)) {
+					sender = &(room.clients[i]);
 				}
-				sprintf(buf,"%s","ыва");
-				sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(lobby.clients[i].target), target_size);
 			}
-				if(strcmp(lobby.clients[b].role,"Мафия")==0){
-					printf("\nПобеда, мафия убита!!!\n");
-					break;
+
+			/*
+			 * Если нашёл отправителя, то рассылает всем игрокам его ник и сообщение
+			 * Если не нашёл, то выводит в лог о неопознанном сообщении
+			 * */
+			if (sender != NULL) {
+				memset(buf, 0, len);
+				msg->type = MSGTYPE_CHAT;
+				sprintf(msg->buf, "%s: %s\n", sender->name, tempmsg);
+				for (i = 0; i < room.count; ++i) {
+					sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 				}
+			} else {
+				printf("Unrecognized message from %s:%d: %s\n", inet_ntoa(target.sin_addr), ntohs(target.sin_port), tempmsg);
+			}
+
 		}
-		flag=0;
-		printf("\nЧат:\n");
-		while (1){ // Цикл принятия 6 имён
-			memset(buf, 0, len);
-			memset(&target, 0, target_size);
-			printf("vote");
-			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size); // Получение имени
-			//printf("vote1");
-				if(strcmp(buf,"vote")==0){//прием голосов
-					printf("vote");
-					for(i=0;i<PLAYER_NUMBER;i++)
-					{
-						recvfrom(sock_fd, buf1, len, 0, (struct sockaddr *) &target, &target_size);
-						result_votes[i] = atoi(buf1);
-					}
-					printf("Убит игрок под номером:");
-					for(i=0;i<PLAYER_NUMBER;i++)
-					{
-						printf("%d\n", result_votes[i]);
-					}
-					printf("222323");		
-					
-					
-				}
-				else{
-					printf("%s\n", buf);			
-				}
+
+		/*
+		 * Отправка всем игрокам сообщение о начале голосования (изменения времени суток)
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_DAYSTATE;
+		msg->buf[0] = 1;
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 		}
-		printf("\nГород засыпает, просыпается мафия\n");
-		printf("\nМафия убивает ирока под номером: ");
-		scanf("%d", &a);
-		lobby.clients[a].status=0;
-		printf("\nМафия  засыпает, просыпается комиссар\n");
-		printf("\nКомиссар проверяет ирока под номером: ");
-		scanf("%d", &b);
-		printf("\nКомиссар засыпает:\n");
-		// Запуск игры
-	}
+		/*
+		 * Рассылка всем игрокам сообщение в чат о начале голосования и предложении выбрать жертву
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_CHAT;
+		sprintf(msg->buf, "[server]: Начало голосования. Выберите жертву.\n");
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Приём 6 сообщений от игроков с их выбором
+		 * */
+		memset(vote_results, 0, sizeof(vote_results));
+		for (i = 0; i < room.count; ++i) {
+			do {
+				recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size);
+			} while (msg->type != MSGTYPE_VOTE);
+			vote_results[msg->buf[0]]++;
+		}
+
+		/*
+		 * Опознание трупа (Алгоритм влоб, переделать)
+		 * */
+		indexmax = -1;
+		votemax = -1;
+		for (i = 0; i < room.count; ++i) {
+			if (vote_results[i] > votemax) {
+				votemax = vote_results[i];
+				indexmax = i;
+			}
+		}
+
+		/*
+		 * Отправка всем о результате голосования
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_VOTERESULT;
+		msg->buf[0] = indexmax;
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Отправка всем игрокам сообщение о начале голосования (изменения времени суток)
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_DAYSTATE;
+		msg->buf[0] = 2;
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Отправка всем игрокам сообщение в чат о наступлении ночи и начале голосования мафии
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_CHAT;
+		sprintf(msg->buf, "[server]: Наступила ночь. Мафия выбирает жертву.\n");
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Получение голоса мафии (обернуть в цикл по количеству мафий, если мафий будет больше 1)
+		 * */
+		memset(vote_results, 0, sizeof(vote_results));
+		do {
+			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size);
+		} while (msg->type != MSGTYPE_VOTE);
+		vote_results[msg->buf[0]]++;
+
+		/*
+		 * Опознание трупа (Алгоритм влоб, переделать)
+		 * */
+		indexmax = -1;
+		votemax = -1;
+		for (i = 0; i < room.count; ++i) {
+			if (vote_results[i] > votemax) {
+				votemax = vote_results[i];
+				indexmax = i;
+			}
+		}
+
+		/*
+		 * Отправка всем игрокам сообщение о начале проверки комиссара
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_DAYSTATE;
+		msg->buf[0] = 2;
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Отправка всем игрокам сообщение в чат о изменении времени суток и о начале проверки комиссара
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_CHAT;
+		sprintf(msg->buf, "[server]: Ночь идет. Комиссар проверяет человека.\n");
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		/*
+		 * Получение голоса комиссара и передача ему роли проверяемого
+		 * (очень ненадёжно, так как принимается сообщение на веру, без проверки, нужно блокировать отправку на стороне клиента)
+		 * ((хотя это всё равно небезопасно))
+		 * */
+		do {
+			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *)&target, &target_size);
+		} while (msg->type != MSGTYPE_VOTE);
+
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_CHAT;
+		sprintf(msg->buf, "[server]: %s - %s\n", room.clients[msg->buf[0]].name, roles[room.clients[msg->buf[0]].role]);
+		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&target, target_size);
+
+		/*
+		 * Отправка всем о результате голосования мафии
+		 * */
+		memset(buf, 0, len);
+		msg->type = MSGTYPE_VOTERESULT;
+		msg->buf[0] = indexmax;
+		for (i = 0; i < room.count; ++i) {
+			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		}
+
+		//TODO: Сделать в этом цикле проверку на окончание игры (END = 1) и отправить всем сообщение об окончании игры
+		// Проверка будет заключаться в проверке, не умерла ли мафия после дневного голосования (победа мирных)
+		// 																				или не остались ли один мирный житель и одна мафия (победа мафии)
+
+
+
+
+//		printf("\nПросыпается город:\n");
+//		if(!flag){//если отправляем сообщение клиенту
+//			for(i=0;i<PLAYER_NUMBER;i++){
+//				if(room.clients[i].status==0){
+//					printf("\nИгрок под номером %d убит\n",i);
+//					sprintf(buf,"%s","0");
+//					sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+//				}
+//				sprintf(buf,"%s","ыва");
+//				sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+//			}
+//				if(strcmp(room.clients[b].role,"Мафия")==0){
+//					printf("\nПобеда, мафия убита!!!\n");
+//					break;
+//				}
+//		}
+//		flag=0;
+//		printf("\nЧат:\n");
+//		while (1){ // Цикл принятия 6 имён
+//			memset(buf, 0, len);
+//			memset(&target, 0, target_size);
+//			printf("vote");
+//			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size); // Получение имени
+//			//printf("vote1");
+//				if(strcmp(buf,"vote")==0){//прием голосов
+//					printf("vote");
+//					for(i=0;i<PLAYER_NUMBER;i++)
+//					{
+//						recvfrom(sock_fd, buf1, len, 0, (struct sockaddr *) &target, &target_size);
+//						result_votes[i] = atoi(buf1);
+//					}
+//					printf("Убит игрок под номером:");
+//					for(i=0;i<PLAYER_NUMBER;i++)
+//					{
+//						printf("%d\n", result_votes[i]);
+//					}
+//					printf("222323");
+//
+//
+//				}
+//				else{
+//					printf("%s\n", buf);
+//				}
+//		}
+//		printf("\nГород засыпает, просыпается мафия\n");
+//		printf("\nМафия убивает ирока под номером: ");
+//		scanf("%d", &a);
+//		room.clients[a].status=0;
+//		printf("\nМафия  засыпает, просыпается комиссар\n");
+//		printf("\nКомиссар проверяет ирока под номером: ");
+//		scanf("%d", &b);
+//		printf("\nКомиссар засыпает:\n");
+//		// Запуск игры
+	} while (!end);
 	close(sock_fd);
 	/*
 	не добавил правило: Поскольку ночью мафия промахнуться не может, 

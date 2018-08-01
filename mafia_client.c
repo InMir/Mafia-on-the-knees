@@ -13,11 +13,16 @@
 
 struct sockaddr_in target;
 socklen_t target_size;
-int sock_fd;
+int sock_fd;//	struct itimerval tval;
+//  	char string[BUFSIZ];
+//  	timerclear(&tval.it_interval); /* нулевой интервал означает не сбрасывать таймер */
+// 	timerclear(&tval.it_value);
+//  	tval.it_value.tv_sec = 3;
+//  	(void)signal(SIGALRM, handler);
 
 int daytime = 0; //0 - ночь, 1 - день
 int end = 0; // 0 - игра идёт, 1 - конец игры
-char buf[260], nickname[16];
+char buf[260], nickname[NICK_LEN];
 char alive[6]; // Массив показателей жизненного состояния жителей (1 - жив, 0 - мертв)
 char my_role, my_number;
 
@@ -96,28 +101,40 @@ int main(int argc, char *argv) {
 	}
 
 
-	printf("You are %s\n",buf);
+	msg = buf;
 	printf("The GAME HAS BEGUN!\n");
-	printf("Enter message: ");
 	do {
 		recvfrom(sock_fd, buf, sizeof(buf), 0, NULL, NULL);
-		msg = buf;
 		switch (msg->type) {
-			case MSGTYPE_DAYNIGHT:
+			case MSGTYPE_DAYSTATE:
 				daytime = msg->buf[0]; //от сервера приходит сообщение, что изменось время суток. Чат ночью блокируется
 				break;
 			case MSGTYPE_CHAT:
 				//gtk_insert в окно с чатом
-			case MSGTYPE_VOTERESULT:
-				alive[msg->buf[0]] = 0;
 				break;
-			case MSGTYPE_INFO:
+			case MSGTYPE_VOTERESULT:
+				alive[msg->buf[0]] = 0; // Блокировать отправку всех send'ов, если умеры ты, изменить иконку если умер кто-то другой
+				break;
+			case MSGTYPE_INFO: // Получение данных о себе
 				my_number = msg->buf[0];
 				my_role = msg->buf[1];
 				break;
-			case MSGTYPE_END:
-				end = 0; // Конец игры, объявляются победители
+			case MSGTYPE_STARTEND:
+				end = msg->buf[0]; // Конец игры, объявляются победители
+				if (end == 1) {
+					 /*
+					  * Конец игры. В чат или отдельным окном вывести сообщение о победителе, передаваемую сервером в msg->buf[1]
+					  * например if (msg->buf[1] == 2) {
+					  * 	printf("Победа МАФИИ!\n");
+					  * } else {
+					  * 	printf("Победа МИРНЫХ!\n");
+					  * }
+					  * */
+
+				}
 				break;
+			case MSGTYPE_NICKNAME:
+
 			default:
 				break;
 
