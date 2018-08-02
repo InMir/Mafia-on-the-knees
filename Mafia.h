@@ -25,6 +25,6 @@ struct message {
 char *roles[3] = { "Civillian", "Commissar", "Mafia" };
 
 
-// enum Roles {Civillian, Commissar, Mafia} roles;
+// enum Roles {Civillian, Commissar, Mafia};
 
 #endif //MAFIA_MAFIA_H

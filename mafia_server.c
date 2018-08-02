@@ -46,16 +46,14 @@ int main(int argc, char **argv) {
 
 	struct Client *sender;
 
-	char buf[260], number[3] = {PLAYER_NUMBER - 2,1,1}, tempmsg[256];
+	char buf[260], number[3] = {PLAYER_NUMBER - 2, 1, 1}, tempmsg[256];
 	len = sizeof(buf);
 	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	struct sockaddr_in target, server;
-	srand(time(NULL));
+	srand(time(0));
 	socklen_t target_size = sizeof(target), server_size = sizeof(server);
 
 	(void)signal(SIGALRM, handler);
-//	char string[BUFSIZ];
-
 
 	memset(&server, 0, server_size);
 	server.sin_family = AF_INET;
@@ -85,15 +83,11 @@ int main(int argc, char **argv) {
 		room.clients[room.count].status = 1;
 
 		//TODO: Оптимизировать алгоритм раздачи ролей
-		a = rand() % 3;
-		while(1) { //необходим для того, чтобы все роли были разданы, то есть пока все элементы массива не будут равны 0
-			if(number[a] > 0){
-				number[a]--;
-				break;
-			}
-			else
-				a = rand() % 3;
-		}
+
+		do {
+			a = rand() % 3;
+		}	while (number[a] > 0);
+		number[a]--;
 
 		room.clients[room.count].role = a;//присваиваем выбранную роль для игрока, присвание идет через передачуу номера роли (0 - Мирный житель, 1 - Комиссар, 2 - Мафия)
 		strcpy(room.clients[room.count].name, msg->buf); // Копирование имени в структуру лобби
@@ -118,13 +112,10 @@ int main(int argc, char **argv) {
 			msg->buf[0] = i;
 			sprintf(msg->buf + 1, "%s", room.clients[i].name);
 			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[room.count].target), target_size);
-		} //TODO: Создать в клиенте массив из шести (включая себя) структур struct players { char name[32]; char alive; };
-
+		}
+		printf("Client connection from %s:%d - %s\n", inet_ntoa(target.sin_addr), ntohs(target.sin_port), room.clients[room.count].name);
 		room.count++;
-		printf("Client connection from %s:%d - %s\n", inet_ntoa(target.sin_addr), ntohs(target.sin_port), buf);
 	}
-
-	printf("\n%d\n", room.count);
 
 	for (i = 0; i < room.count; ++i) {
 		memset(buf, 0, len);
@@ -157,7 +148,7 @@ int main(int argc, char **argv) {
 		 * */
 		memset(buf, 0, len);
 		msg->type = MSGTYPE_CHAT;
-		sprintf(msg->buf, "[server]: День %d.\n[server]: У вас 2 минуты на разговоры.\n", daycount);
+		sprintf(msg->buf, "[server]: День %d.\n[server]: У вас 60 секунд на разговоры.\n", daycount);
 		for (i = 0; i < room.count; ++i) {
 			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 		}
@@ -169,7 +160,7 @@ int main(int argc, char **argv) {
 		memset(&tval, 0, sizeof(tval));
 		timerclear(&tval.it_interval); /* нулевой интервал означает не сбрасывать таймер */
 		timerclear(&tval.it_value);
-		tval.it_value.tv_sec = 120;
+		tval.it_value.tv_sec = 60;
 		(void)setitimer(ITIMER_REAL, &tval, NULL);
 
 
@@ -188,7 +179,7 @@ int main(int argc, char **argv) {
 			sender = NULL;
 			for (i = 0; i < room.count; ++i) {
 				if ((target.sin_addr.s_addr == room.clients[i].target.sin_addr.s_addr)
-						|| (target.sin_port == room.clients[i].target.sin_port)) {
+						&& (target.sin_port == room.clients[i].target.sin_port)) {
 					sender = &(room.clients[i]);
 				}
 			}
@@ -241,7 +232,7 @@ int main(int argc, char **argv) {
 		}
 
 		/*
-		 * Опознание трупа (Алгоритм влоб, переделать)
+		 * Опознание трупа (Алгоритм влоб, берется просто первый среди равных, ПЕРЕДЕЛАТЬ)
 		 * */
 		indexmax = votemax = -1;
 		for (i = 0; i < room.count; ++i) {
