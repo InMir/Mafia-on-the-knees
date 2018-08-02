@@ -1,9 +1,16 @@
 #ifndef MAFIA_MAFIA_H
 #define MAFIA_MAFIA_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 #include <assert.h>
 #include <signal.h>
 #include <sys/time.h>
+#include "gtk.h"
 
 #define MSGTYPE_CHAT 0
 #define MSGTYPE_VOTE 1
@@ -18,13 +25,15 @@
 #define NICK_LEN 32
 
 struct message {
-		int type;
-		char buf[256];
+	int type;
+	char buf[256];
 };
 
 char *roles[3] = { "Civillian", "Commissar", "Mafia" };
 
+int send_msg (int , char *);
+int logic (struct GtkStruct *);
 
-// enum Roles {Civillian, Commissar, Mafia};
+// enum Roles {Civillian, Commissar, Mafia} roles;
 
 #endif //MAFIA_MAFIA_H
