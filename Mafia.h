@@ -10,7 +10,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <sys/time.h>
-#include "gtk.h"
+#include "gtk_struct.h"
 
 #define MSGTYPE_CHAT 0
 #define MSGTYPE_VOTE 1
@@ -28,8 +28,6 @@ struct message {
 	int type;
 	char buf[256];
 };
-
-char *roles[3] = { "Civillian", "Commissar", "Mafia" };
 
 int send_msg (int , char *);
 int logic (struct GtkStruct *);

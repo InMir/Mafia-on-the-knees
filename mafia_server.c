@@ -8,6 +8,7 @@
 
 #include "Mafia.h"
 
+
 struct itimerval tval;
 
 int chatflag;
@@ -46,6 +47,7 @@ int main(int argc, char **argv) {
 
 	struct Client *sender;
 
+	char *roles[3] = { "Civillian", "Commissar", "Mafia" };
 	char buf[260], number[3] = {PLAYER_NUMBER - 2, 1, 1}, tempmsg[256];
 	len = sizeof(buf);
 	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);

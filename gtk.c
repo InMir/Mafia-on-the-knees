@@ -1,13 +1,13 @@
-#include "Mafia.h"
+#include "gtk.h"
 
-static void vote (GtkWidget *widget, gpointer data, int number) {
+void vote (GtkWidget *widget, gpointer data, int number) {
     if (send_msg(MSGTYPE_VOTE, &number) == -1) { // Отправка голоса
 		perror("send_vote");
 		return -3;
 	}
 }
 
-static void chat (GtkWidget *widget, gpointer data, GtkEntryBuffer *buffer) {
+void chat (GtkWidget *widget, gpointer data, GtkEntryBuffer *buffer) {
 	gchar *str = gtk_entry_buffer_get_text (GTK_ENTRY_BUFFER (buffer));
     if (send_msg(MSGTYPE_CHAT, str) == -1) { // Отправка сообщения в чат
 		perror("send_vote");
@@ -16,7 +16,7 @@ static void chat (GtkWidget *widget, gpointer data, GtkEntryBuffer *buffer) {
 	gtk_entry_buffer_set_text (GTK_ENTRY_BUFFER (buffer), '\0', -1);
 }
 
-static void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
+void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     int i, n = 6;
     int num[n];
     char name[32];
@@ -117,7 +117,7 @@ static void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg)
     logic (arg);
 }
 
-static void end_game (struct GtkStruct *arg, char *msg) {
+void end_game (struct GtkStruct *arg, char *msg) {
     GtkWidget *window, *label, *button, *box;
     gint x, y;
     window = gtk_application_window_new ((arg)->app);
@@ -142,7 +142,7 @@ static void end_game (struct GtkStruct *arg, char *msg) {
     arg->window = window;
 }
 
-static void get_laws (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
+void get_laws (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     GtkWidget *window, *textarea, *box;
     GtkTextBuffer *buffer;
     GtkWidget *button;
@@ -192,7 +192,7 @@ static void get_laws (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     arg->window = window;
 }
 
-static void menu (GtkWidget *widget, gpointer user_data, struct GtkStruct *arg) {
+void menu (GtkWidget *widget, gpointer user_data, struct GtkStruct *arg) {
     int i;
     GtkWidget *window;
     GtkWidget *button[3];
@@ -234,7 +234,7 @@ static void menu (GtkWidget *widget, gpointer user_data, struct GtkStruct *arg) 
     arg->window = window;
 }
 
-static void activate (GtkApplication *app, gpointer user_date) {
+void activate (GtkApplication *app, gpointer user_date) {
     GtkWidget *window, *button, *box, *entry;
     GtkEntryBuffer *buffer;
     struct GtkStruct *arg = malloc (sizeof (struct GtkStruct));

@@ -1,5 +1,6 @@
-#include "Mafia.h"
+
 #include "gtk.h"
+
 int sock_fd;
 struct sockaddr_in target;
 socklen_t target_size;

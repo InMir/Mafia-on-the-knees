@@ -1,6 +1,6 @@
-#include "Mafia.h"
+#include "gtk.h"
 
-int main (int    argc, char **argv) {
+int main (int argc, char **argv) {
     GtkApplication *app;
     int status;
 
