@@ -12,13 +12,15 @@ int send_msg (int msgtype, char *str) {
 	char localbuf[260];
 	struct message *msg = localbuf;
 	msg->type = msgtype;
-	memcpy(msg->buf, str, 256);
+	memset (localbuf, 0, 260);
+	msg->type = msgtype;
+	memcpy (msg->buf, str, 256);
 	return sendto(sock_fd, localbuf, sizeof(localbuf), 0, (struct sockaddr*)&target, target_size);
 }
 
 void *logic (void *art) {
 	struct GtkStruct *arg = art;
-	char *imagepath[3] = {"/home/server1/image/civil.png", "/home/server1/image/comm.png", "/home/server1/image/mafia.png"};
+	char *imagepath[3] = {"./image/civil.png", "./image/comm.png", "./image/mafia.png"};
 	int daytime = 0; //0 - ночь, 1 - день
 	int end = 0; // 0 - игра идёт, 1 - конец игры
 	char buf[260], nickname[NICK_LEN];
@@ -64,10 +66,10 @@ void *logic (void *art) {
 						case 0:
 							g_signal_connect (arg->bsend, "clicked", G_CALLBACK (chat), arg->buff);
 							for (int i = 0; i < 6; i++)
-								g_signal_connect (arg->button[i], "clicked", NULL, NULL);
+								g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
 							break;
 						case 1:
-							g_signal_connect (arg->bsend, "clicked", NULL, NULL);
+							g_signal_connect (arg->bsend, "clicked", G_CALLBACK (stub), NULL);
 							for (int i = 0; i < 6; i++)
 								if ((alive[i] == 1))
 									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (vote), &num[i]);
@@ -75,12 +77,12 @@ void *logic (void *art) {
 						case 2:
 							if (my_role != 2)
 								for (int i = 0; i < 6; i++)
-									g_signal_connect (arg->button[i], "clicked", NULL, NULL);
+									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
 							break;
 						case 3:
 							if (my_role != 1)
 								for (int i = 0; i < 6; i++)
-									g_signal_connect (arg->button[i], "clicked", NULL, NULL);
+									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
 							else
 								for (int i = 0; i < 6; i++)
 									if ((alive[i] == 1))
@@ -95,10 +97,10 @@ void *logic (void *art) {
 				alive[msg->buf[0]] = 0; // Блокировать отправку всех send'ов, если умеры ты, изменить иконку если умер кто-то другой
 				if (msg->buf[0] == my_number) {
 					for (int i = 0; i < 6; i++)
-						g_signal_connect (arg->button[i], "clicked", NULL, NULL);
-					g_signal_connect (arg->bsend, "clicked", NULL, NULL);
+						g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+					g_signal_connect (arg->bsend, "clicked", G_CALLBACK (stub), NULL);
 				} else {
-					GtkWidget *image = gtk_image_new_from_file ("/home/server1/image/dead.png");
+					GtkWidget *image = gtk_image_new_from_file ("./image/dead.png");
 					gtk_button_set_image (GTK_BUTTON (arg->button[msg->buf[0]]), image);
 				}
 				break;
@@ -124,6 +126,7 @@ void *logic (void *art) {
 				}
 				break;
 			case MSGTYPE_NICKNAME:
+				printf ("%s\n", msg->buf + 1);
 				gtk_label_set_text (GTK_LABEL (arg->label[msg->buf[0]]), msg->buf + 1);
 				break;
 			default:

@@ -1,6 +1,6 @@
 #include "gtk.h"
 
-void vote (GtkWidget *widget, gpointer data, int *number) {
+void vote (GtkWidget *widget, gpointer data, char *number) {
     if (send_msg(MSGTYPE_VOTE, number) == -1) { // Отправка голоса
 		perror("send_vote");
 		return -3;
@@ -15,6 +15,8 @@ void chat (GtkWidget *widget, gpointer data, GtkEntryBuffer *buffer) {
 	}
 	gtk_entry_buffer_set_text (GTK_ENTRY_BUFFER (buffer), '\0', -1);
 }
+
+void stub (GtkWidget *widget, gpointer data) {}
 
 void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     int i, n = 6;
@@ -60,7 +62,7 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
 	gtk_container_add (GTK_CONTAINER (boxh[0]), boxb[i]);
 	gtk_container_add (GTK_CONTAINER (boxb[i]), button[i]);
 	gtk_container_add (GTK_CONTAINER (boxb[i]), label[i]);
-	image[i] = gtk_image_new_from_file ("/home/server1/image/live.png");
+	image[i] = gtk_image_new_from_file ("./image/live.png");
 	gtk_button_set_image (GTK_BUTTON (button[i]), image[i]);
 	num[i] = i;
 	g_signal_connect (button[i], "clicked", G_CALLBACK (vote), &num[i]);
@@ -75,7 +77,7 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     buffer = gtk_entry_buffer_new ("", -1);
     entry = gtk_entry_new_with_buffer (GTK_ENTRY_BUFFER (buffer));
     gtk_text_view_set_buffer (GTK_TEXT_VIEW (textarea), tbuffer);
-    image[6] = gtk_image_new_from_file ("/home/server1/image/mafia.jpg");
+    image[6] = gtk_image_new_from_file ("./image/mafia.png");
 
     /*Вложение контейнеров друг в друга*/
     gtk_container_add (GTK_CONTAINER (window), boxv[0]);
@@ -150,7 +152,7 @@ void get_laws (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     GtkPackType child;
     FILE *fd;
     guint padding;
-    if ((fd = fopen("/home/server1/eltex/gtk/rules.txt", "r")) == NULL) {
+    if ((fd = fopen("./rules.txt", "r")) == NULL) {
 	printf ("Can not open file\n");
 	return;
     }

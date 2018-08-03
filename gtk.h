@@ -8,7 +8,8 @@ void menu (GtkWidget *, gpointer, struct GtkStruct *);
 void start_game (GtkWidget *, gpointer, struct GtkStruct *);
 void get_laws (GtkWidget *, gpointer, struct GtkStruct *);
 void end_game (struct GtkStruct *, char *);
-void vote (GtkWidget *, gpointer, int *);
+void vote (GtkWidget *, gpointer, char *);
 void chat (GtkWidget *, gpointer, GtkEntryBuffer *);
+void stub (GtkWidget *, gpointer);
 
 #endif
