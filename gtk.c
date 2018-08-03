@@ -1,19 +1,19 @@
 #include "gtk.h"
 
 void vote (GtkWidget *widget, gpointer data, char *number) {
-    if (send_msg(MSGTYPE_VOTE, number) == -1) { // Отправка голоса
+	if (send_msg(MSGTYPE_VOTE, number) == -1) { // Отправка голоса
 		perror("send_vote");
 		return -3;
 	}
 }
 
 void chat (GtkWidget *widget, gpointer data, GtkEntryBuffer *buffer) {
-	gchar *str = gtk_entry_buffer_get_text (GTK_ENTRY_BUFFER (buffer));
-    if (send_msg(MSGTYPE_CHAT, str) == -1) { // Отправка сообщения в чат
+	char *str = gtk_entry_buffer_get_text (GTK_ENTRY_BUFFER (buffer));
+	if (send_msg(MSGTYPE_CHAT, str) == -1) { // Отправка сообщения в чат
 		perror("send_vote");
 		return -3;
 	}
-	gtk_entry_buffer_set_text (GTK_ENTRY_BUFFER (buffer), '\0', -1);
+	gtk_entry_buffer_set_text (GTK_ENTRY_BUFFER (buffer), "", -1);
 }
 
 void stub (GtkWidget *widget, gpointer data) {}
@@ -50,10 +50,20 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     gtk_window_move (GTK_WINDOW (window), x - 200, y);
     gtk_container_set_border_width (GTK_CONTAINER (window), 50);
 
-    
+    /*Создание поля ввода и вывод*/
+    textarea = gtk_text_view_new ();
+    tbuffer = gtk_text_buffer_new (NULL);
+    gtk_text_view_set_editable (GTK_TEXT_VIEW (textarea), FALSE);
+    gtk_text_view_set_cursor_visible (GTK_TEXT_VIEW (textarea), FALSE);
+    gtk_text_view_set_overwrite (GTK_TEXT_VIEW (textarea), FALSE);
+    buffer = gtk_entry_buffer_new ("", -1);
+    entry = gtk_entry_new_with_buffer (GTK_ENTRY_BUFFER (buffer));
+    gtk_text_view_set_buffer (GTK_TEXT_VIEW (textarea), tbuffer);
+    image[6] = gtk_image_new_from_file ("./image/mafia.png");
+
     /*Создание кнопок для выбора пользователя и добавление их в горизонтальный контейнер*/
     bsend = gtk_button_new_with_label ("Отправить");
-	g_signal_connect (bsend, "clicked", G_CALLBACK (chat), buffer);
+    g_signal_connect (bsend, "clicked", G_CALLBACK (chat), buffer);
     for (i = 0; i < n; i++) {
 	sprintf (name, "Пользователь %d", i);
 	label[i] = gtk_label_new (name);
@@ -67,17 +77,6 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
 	num[i] = i;
 	g_signal_connect (button[i], "clicked", G_CALLBACK (vote), &num[i]);
     }
-
-    /*Создание поля ввода и вывод*/
-    textarea = gtk_text_view_new ();
-    tbuffer = gtk_text_buffer_new (NULL);
-    gtk_text_view_set_editable (GTK_TEXT_VIEW (textarea), FALSE);
-    gtk_text_view_set_cursor_visible (GTK_TEXT_VIEW (textarea), FALSE);
-    gtk_text_view_set_overwrite (GTK_TEXT_VIEW (textarea), FALSE);
-    buffer = gtk_entry_buffer_new ("", -1);
-    entry = gtk_entry_new_with_buffer (GTK_ENTRY_BUFFER (buffer));
-    gtk_text_view_set_buffer (GTK_TEXT_VIEW (textarea), tbuffer);
-    image[6] = gtk_image_new_from_file ("./image/mafia.png");
 
     /*Вложение контейнеров друг в друга*/
     gtk_container_add (GTK_CONTAINER (window), boxv[0]);
