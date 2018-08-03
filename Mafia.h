@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <pthread.h>
 #include "gtk_struct.h"
 
 #define MSGTYPE_CHAT 0
@@ -30,7 +31,7 @@ struct message {
 };
 
 int send_msg (int , char *);
-int logic (struct GtkStruct *);
+void *logic (void *);
 
 // enum Roles {Civillian, Commissar, Mafia} roles;
 

@@ -1,7 +1,7 @@
 #include "gtk.h"
 
-void vote (GtkWidget *widget, gpointer data, int number) {
-    if (send_msg(MSGTYPE_VOTE, &number) == -1) { // Отправка голоса
+void vote (GtkWidget *widget, gpointer data, int *number) {
+    if (send_msg(MSGTYPE_VOTE, number) == -1) { // Отправка голоса
 		perror("send_vote");
 		return -3;
 	}
@@ -114,7 +114,8 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
 	arg->button[i] = button[i];
 	arg->label[i] = label[i];
     }
-    logic (arg);
+    pthread_t ptr;
+    pthread_create (&ptr, NULL, logic, arg);
 }
 
 void end_game (struct GtkStruct *arg, char *msg) {

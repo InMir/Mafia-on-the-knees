@@ -16,17 +16,20 @@ int send_msg (int msgtype, char *str) {
 	return sendto(sock_fd, localbuf, sizeof(localbuf), 0, (struct sockaddr*)&target, target_size);
 }
 
-int logic (struct GtkStruct *arg) {
+void *logic (void *art) {
+	struct GtkStruct *arg = art;
 	char *imagepath[3] = {"/home/server1/image/civil.png", "/home/server1/image/comm.png", "/home/server1/image/mafia.png"};
 	int daytime = 0; //0 - ночь, 1 - день
 	int end = 0; // 0 - игра идёт, 1 - конец игры
 	char buf[260], nickname[NICK_LEN];
-	char alive[6]; // Массив показателей жизненного состояния жителей (1 - жив, 0 - мертв)
+	char alive[6], num[6]; // Массив показателей жизненного состояния жителей (1 - жив, 0 - мертв)
 	char my_role, my_number;
 	int flag = 1, flag2 = 1, vote;
 	size_t len;
-	for (int i = 0; i < 6; ++i)		// Заполенеие массива alive единицами,
+	for (int i = 0; i < 6; ++i) {		// Заполенеие массива alive единицами,
 		alive[i] = 1;			// так как изначально все жители живы
+		num[i] = i;
+	}
 	struct message *msg;
 
 	//сокет
@@ -42,9 +45,9 @@ int logic (struct GtkStruct *arg) {
 	target_size = sizeof(target);
 	len = sizeof(buf);
 
-	printf("Your name is %s\n", nickname);
+	printf("Your name is %s\n", arg->name);
 
-	if (send_msg(MSGTYPE_NICKNAME, nickname) == -1) { // Отправка ника по нажатию кнопки Играть
+	if (send_msg(MSGTYPE_NICKNAME, arg->name) == -1) { // Отправка ника по нажатию кнопки Играть
 		perror("send_nick");
 		return -3;
 	}
@@ -56,10 +59,34 @@ int logic (struct GtkStruct *arg) {
 		switch (msg->type) {
 			case MSGTYPE_DAYSTATE:
 				daytime = msg->buf[0]; //от сервера приходит сообщение, что изменось время суток. Чат ночью блокируется
-				if (daytime == 0)
-					g_signal_connect (arg->bsend, "clicked", NULL, NULL);
-				else
-					g_signal_connect (arg->bsend, "clicked", G_CALLBACK (chat), arg->buff);
+				if (alive[my_number] == 1)
+					switch (daytime) {
+						case 0:
+							g_signal_connect (arg->bsend, "clicked", G_CALLBACK (chat), arg->buff);
+							for (int i = 0; i < 6; i++)
+								g_signal_connect (arg->button[i], "clicked", NULL, NULL);
+							break;
+						case 1:
+							g_signal_connect (arg->bsend, "clicked", NULL, NULL);
+							for (int i = 0; i < 6; i++)
+								if ((alive[i] == 1))
+									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (vote), &num[i]);
+							break;
+						case 2:
+							if (my_role != 2)
+								for (int i = 0; i < 6; i++)
+									g_signal_connect (arg->button[i], "clicked", NULL, NULL);
+							break;
+						case 3:
+							if (my_role != 1)
+								for (int i = 0; i < 6; i++)
+									g_signal_connect (arg->button[i], "clicked", NULL, NULL);
+							else
+								for (int i = 0; i < 6; i++)
+									if ((alive[i] == 1))
+										g_signal_connect (arg->button[i], "clicked", G_CALLBACK (vote), &num[i]);
+							break;
+					}
 				break;
 			case MSGTYPE_CHAT:
 				gtk_text_buffer_insert_at_cursor (GTK_TEXT_BUFFER (arg->text), msg->buf, -1);
@@ -72,7 +99,7 @@ int logic (struct GtkStruct *arg) {
 					g_signal_connect (arg->bsend, "clicked", NULL, NULL);
 				} else {
 					GtkWidget *image = gtk_image_new_from_file ("/home/server1/image/dead.png");
-				    gtk_button_set_image (GTK_BUTTON (arg->button[msg->buf[0]]), image);
+					gtk_button_set_image (GTK_BUTTON (arg->button[msg->buf[0]]), image);
 				}
 				break;
 			case MSGTYPE_INFO: // Получение данных о себе
