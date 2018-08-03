@@ -75,20 +75,21 @@ int main(int argc, char **argv) {
 	}
 
 	msg = buf;
-
-	while (room.count < PLAYER_NUMBER)	{ // Цикл принятия 6 имён
+	room.count = 0;
+	while (room.count < PLAYER_NUMBER) { // Цикл принятия 6 имён
 		memset(buf, 0, len);
 		memset(&target, 0, target_size);
-		do { // Принимаются и игнорируются все сообщения, кроме типа MSGTYPE_NICKNAME (подключившиеся клиенты могут спамить нажатиями кнопок)
+		do { // Принимаются и игнорируются все сообщения, кроме типа MSGTYPE_NICKNAME (подключившиеся клиенты могут спамить нажатиями кнопок
 			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size); // Получение имени
 		} while (msg->type != MSGTYPE_NICKNAME);
+		printf ("%s\n", msg->buf);
 		room.clients[room.count].status = 1;
 
 		//TODO: Оптимизировать алгоритм раздачи ролей
 
 		do {
 			a = rand() % 3;
-		}	while (number[a] > 0);
+		} while (number[a] == 0);
 		number[a]--;
 
 		room.clients[room.count].role = a;//присваиваем выбранную роль для игрока, присвание идет через передачуу номера роли (0 - Мирный житель, 1 - Комиссар, 2 - Мафия)
@@ -100,8 +101,8 @@ int main(int argc, char **argv) {
 		*/
 		memset(buf, 0, len);
 		msg->type = MSGTYPE_CHAT;
-		sprintf(msg->buf, "%d/%d...\n", room.count, PLAYER_NUMBER);
-		for (i = 0; i < room.count; ++i) {
+		sprintf(msg->buf, "%d/%d...\n", room.count + 1, PLAYER_NUMBER);
+		for (i = 0; i < room.count + 1; ++i) {
 			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
 		}
 
@@ -114,7 +115,11 @@ int main(int argc, char **argv) {
 			msg->buf[0] = i;
 			sprintf(msg->buf + 1, "%s", room.clients[i].name);
 			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[room.count].target), target_size);
+			printf ("%d %d\n", i, room.count);
 		}
+		msg->buf[0] = room.count;
+		sprintf(msg->buf + 1, "%s", room.clients[room.count].name);
+		sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[room.count].target), target_size);
 		printf("Client connection from %s:%d - %s\n", inet_ntoa(target.sin_addr), ntohs(target.sin_port), room.clients[room.count].name);
 		room.count++;
 	}
