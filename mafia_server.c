@@ -27,6 +27,10 @@ struct Client { 			// Структура, описывающая клиента
 
 struct Room {
 		uint8_t count;
+		uint8_t mafiacount;
+		uint8_t alivecount;
+		struct Client *mafia;
+		struct Client *commissar;
 		struct Client clients[6];
 };
 
@@ -76,6 +80,10 @@ int main(int argc, char **argv) {
 
 	msg = buf;
 	room.count = 0;
+	room.alivecount = PLAYER_NUMBER;
+	room.mafiacount = 0;
+	room.mafia = NULL;
+	room.commissar = NULL;
 	while (room.count < PLAYER_NUMBER) { // Цикл принятия 6 имён
 		memset(buf, 0, len);
 		memset(&target, 0, target_size);
@@ -92,6 +100,17 @@ int main(int argc, char **argv) {
 		} while (number[a] == 0);
 		number[a]--;
 
+		switch (a) {
+			case 1:
+				room.commissar = &(room.clients[room.count]);
+				break;
+			case 2:
+				room.mafia = &(room.clients[room.count]);
+				room.mafiacount++;
+				break;
+			default:
+				break;
+		}
 		room.clients[room.count].role = a;//присваиваем выбранную роль для игрока, присвание идет через передачуу номера роли (0 - Мирный житель, 1 - Комиссар, 2 - Мафия)
 		strcpy(room.clients[room.count].name, msg->buf); // Копирование имени в структуру лобби
 		memcpy(&(room.clients[room.count].target), &target, target_size); // Копирование информации о пришедшем подключении (ip + port)
@@ -231,13 +250,12 @@ int main(int argc, char **argv) {
 		 * Приём 6 сообщений от игроков с их выбором
 		 * */
 		memset(vote_results, 0, sizeof(vote_results));
-		for (i = 0; i < room.count; ++i) {
+		for (i = 0; i < room.alivecount; ++i) {
 			do {
 				recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size);
 			} while (msg->type != MSGTYPE_VOTE);
 			vote_results[msg->buf[0]]++;
 		}
-
 		/*
 		 * Опознание трупа (Алгоритм влоб, берется просто первый среди равных, ПЕРЕДЕЛАТЬ)
 		 * */
@@ -263,11 +281,11 @@ int main(int argc, char **argv) {
 		for (i = 0; i < room.count; ++i) {
 			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
 		}
-
+		room.alivecount--;
 		room.clients[indexmax].status = 0;
 
 		/*
-		 * Отправка всем игрокам сообщение о начале голосования (изменения времени суток)
+		 * Отправка всем игрокам сообщение о начале голосования мафии (изменения времени суток)
 		 * */
 		memset(buf, 0, len);
 		msg->type = MSGTYPE_DAYSTATE;
@@ -306,39 +324,47 @@ int main(int argc, char **argv) {
 			}
 		}
 
-		/*
-		 * Отправка всем игрокам сообщение о начале проверки комиссара
-		 * */
-		memset(buf, 0, len);
-		msg->type = MSGTYPE_DAYSTATE;
-		msg->buf[0] = 2;
-		for (i = 0; i < room.count; ++i) {
-			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+		if (room.commissar->status != 1) {
+			/*
+			 * Отправка всем игрокам сообщение о начале проверки комиссара
+			 * */
+			memset(buf, 0, len);
+			msg->type = MSGTYPE_DAYSTATE;
+			msg->buf[0] = 2;
+			for (i = 0; i < room.count; ++i) {
+				sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
+			}
+
+			/*
+			 * Отправка всем игрокам сообщение в чат о изменении времени суток и о начале проверки комиссара
+			 * */
+			memset(buf, 0, len);
+			msg->type = MSGTYPE_CHAT;
+			sprintf(msg->buf, "[server]: Ночь идет. Комиссар проверяет человека.\n");
+			for (i = 0; i < room.count; ++i) {
+				sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
+			}
+
+			/*
+			 * Получение голоса комиссара и передача ему роли проверяемого
+			 * */
+			do {
+				recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size);
+			} while ((msg->type != MSGTYPE_VOTE)
+							 || (target.sin_addr.s_addr != room.commissar->target.sin_addr.s_addr)
+							 || (target.sin_port != room.commissar->target.sin_port));
+
+			memset(buf, 0, len);
+			msg->type = MSGTYPE_CHAT;
+			sprintf(msg->buf, "[server]: %s - %s\n", room.clients[msg->buf[0]].name, roles[room.clients[msg->buf[0]].role]);
+			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &target, target_size);
 		}
 
-		/*
-		 * Отправка всем игрокам сообщение в чат о изменении времени суток и о начале проверки комиссара
-		 * */
-		memset(buf, 0, len);
-		msg->type = MSGTYPE_CHAT;
-		sprintf(msg->buf, "[server]: Ночь идет. Комиссар проверяет человека.\n");
-		for (i = 0; i < room.count; ++i) {
-			sendto(sock_fd, buf, len, 0, (struct sockaddr*)&(room.clients[i].target), target_size);
+
+		if (room.clients[indexmax].role == 2) {
+			end = 1;
+			break;
 		}
-
-		/*
-		 * Получение голоса комиссара и передача ему роли проверяемого
-		 * (очень ненадёжно, так как принимается сообщение на веру, без проверки, нужно блокировать отправку на стороне клиента)
-		 * ((хотя это всё равно небезопасно))
-		 * */
-		do {
-			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *)&target, &target_size);
-		} while (msg->type != MSGTYPE_VOTE);
-
-		memset(buf, 0, len);
-		msg->type = MSGTYPE_CHAT;
-		sprintf(msg->buf, "[server]: %s - %s\n", room.clients[msg->buf[0]].name, roles[room.clients[msg->buf[0]].role]);
-		sendto(sock_fd, buf, len, 0, (struct sockaddr*)&target, target_size);
 
 		/*
 		 * Отправка всем о результате голосования мафии
@@ -349,6 +375,8 @@ int main(int argc, char **argv) {
 		for (i = 0; i < room.count; ++i) {
 			sendto(sock_fd, buf, len, 0, (struct sockaddr *) &(room.clients[i].target), target_size);
 		}
+		room.alivecount--;
+		room.clients[indexmax].status = 0;
 
 		/*
 		 * Проверяет в конце дня состояние игры, если остался 1х1, то побеждает мафия
