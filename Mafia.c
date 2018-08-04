@@ -20,6 +20,7 @@ int send_msg (int msgtype, char *str) {
 
 void *logic (void *art) {
 	struct GtkStruct *arg = art;
+	GtkEntryBuffer *buffer;
 	char *imagepath[3] = {"./image/civil.png", "./image/comm.png", "./image/mafia.png"};
 	int daytime = 0; //0 - ночь, 1 - день
 	int end = 0; // 0 - игра идёт, 1 - конец игры
@@ -33,6 +34,8 @@ void *logic (void *art) {
 		num[i] = i;
 	}
 	struct message *msg;
+	buffer = arg->buff;
+	printf ("1%p\n", buffer);
 
 	//сокет
 	sock_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -64,29 +67,39 @@ void *logic (void *art) {
 				if (alive[my_number] == 1)
 					switch (daytime) {
 						case 0:
-							g_signal_connect (arg->bsend, "clicked", G_CALLBACK (chat), arg->buff);
-							for (int i = 0; i < 6; i++)
-								g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+							//g_signal_connect (arg->bsend, "clicked", G_CALLBACK (chat), buffer);
+							for (int i = 0; i < 6; i++) {
+								g_signal_handler_disconnect (arg->button[i], arg->id[i]);
+								//g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+							}
 							break;
 						case 1:
-							g_signal_connect (arg->bsend, "clicked", G_CALLBACK (stub), NULL);
+							//g_signal_connect (arg->bsend, "clicked", G_CALLBACK (stub), NULL);
 							for (int i = 0; i < 6; i++)
-								if ((alive[i] == 1))
-									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (vote), &num[i]);
+								if ((alive[i] == 1)) {
+									//g_signal_handler_disconnect (arg->button[i], arg->id[i]);
+									arg->id[i] = g_signal_connect (arg->button[i], "clicked", G_CALLBACK (votes), &num[i]);
+								}
 							break;
 						case 2:
 							if (my_role != 2)
-								for (int i = 0; i < 6; i++)
-									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+								for (int i = 0; i < 6; i++) {
+									g_signal_handler_disconnect (arg->button[i], arg->id[i]);
+									//g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+								}
 							break;
 						case 3:
 							if (my_role != 1)
-								for (int i = 0; i < 6; i++)
-									g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+								for (int i = 0; i < 6; i++) {
+									g_signal_handler_disconnect (arg->button[i], arg->id[i]);
+									//g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
+								}
 							else
 								for (int i = 0; i < 6; i++)
-									if ((alive[i] == 1))
-										g_signal_connect (arg->button[i], "clicked", G_CALLBACK (vote), &num[i]);
+									if ((alive[i] == 1)) {
+										//g_signal_handler_disconnect (arg->button[i], arg->id[i]);
+										arg->id[i] = g_signal_connect (arg->button[i], "clicked", G_CALLBACK (votes), &num[i]);
+									}
 							break;
 					}
 				break;
@@ -95,14 +108,12 @@ void *logic (void *art) {
 				break;
 			case MSGTYPE_VOTERESULT:
 				alive[msg->buf[0]] = 0; // Блокировать отправку всех send'ов, если умеры ты, изменить иконку если умер кто-то другой
-				if (msg->buf[0] == my_number) {
+				if (msg->buf[0] == my_number)
 					for (int i = 0; i < 6; i++)
-						g_signal_connect (arg->button[i], "clicked", G_CALLBACK (stub), NULL);
-					g_signal_connect (arg->bsend, "clicked", G_CALLBACK (stub), NULL);
-				} else {
-					GtkWidget *image = gtk_image_new_from_file ("./image/dead.png");
-					gtk_button_set_image (GTK_BUTTON (arg->button[msg->buf[0]]), image);
-				}
+						g_signal_handler_disconnect (arg->button[i], arg->id[i]);
+					g_signal_handler_disconnect (arg->bsend, arg->id[6]);
+				GtkWidget *image = gtk_image_new_from_file ("./image/dead.png");
+				gtk_button_set_image (GTK_BUTTON (arg->button[msg->buf[0]]), image);
 				break;
 			case MSGTYPE_INFO: // Получение данных о себе
 				my_number = msg->buf[0];

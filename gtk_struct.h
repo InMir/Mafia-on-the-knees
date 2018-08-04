@@ -15,6 +15,7 @@ struct GtkStruct {
 		GtkWidget *button[6], *bsend;
 		GtkWidget *label[6];
 		GtkWidget *image;
+		gulong id[7];
 };
 
 #endif //MAFIA_GTK_STRUCT_H

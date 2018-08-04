@@ -1,6 +1,6 @@
 #include "gtk.h"
 
-void vote (GtkWidget *widget, gpointer data, char *number) {
+void votes (GtkWidget *widget, gpointer data, char *number) {
 	if (send_msg(MSGTYPE_VOTE, number) == -1) { // Отправка голоса
 		perror("send_vote");
 		return -3;
@@ -8,14 +8,16 @@ void vote (GtkWidget *widget, gpointer data, char *number) {
 }
 
 void chat (GtkWidget *widget, gpointer data, GtkEntryBuffer *buffer) {
+	printf ("%p\n", buffer);
 	char *str = gtk_entry_buffer_get_text (GTK_ENTRY_BUFFER (buffer));
 	if (send_msg(MSGTYPE_CHAT, str) == -1) { // Отправка сообщения в чат
 		perror("send_vote");
 		return -3;
 	}
+	printf ("tartget\n");
 	gtk_entry_buffer_set_text (GTK_ENTRY_BUFFER (buffer), "", -1);
 }
-
+    
 void stub (GtkWidget *widget, gpointer data) {}
 
 void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
@@ -63,7 +65,8 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
 
     /*Создание кнопок для выбора пользователя и добавление их в горизонтальный контейнер*/
     bsend = gtk_button_new_with_label ("Отправить");
-    g_signal_connect (bsend, "clicked", G_CALLBACK (chat), buffer);
+    arg->id[6] = g_signal_connect (bsend, "clicked", G_CALLBACK (chat), buffer);
+    printf ("%p\n", buffer);
     for (i = 0; i < n; i++) {
 	sprintf (name, "Пользователь %d", i);
 	label[i] = gtk_label_new (name);
@@ -75,7 +78,7 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
 	image[i] = gtk_image_new_from_file ("./image/live.png");
 	gtk_button_set_image (GTK_BUTTON (button[i]), image[i]);
 	num[i] = i;
-	g_signal_connect (button[i], "clicked", G_CALLBACK (vote), &num[i]);
+	arg->id[i] = g_signal_connect (button[i], "clicked", G_CALLBACK (votes), &num[i]);
     }
 
     /*Вложение контейнеров друг в друга*/
@@ -111,6 +114,9 @@ void start_game (GtkWidget *widget, gpointer data, struct GtkStruct *arg) {
     arg->text = tbuffer;
     arg->image = image[6];
     arg->bsend = bsend;
+    printf ("%p\n", buffer);
+    arg->buff = buffer;
+    printf ("%p\n", arg->buff);
     for (i = 0; i < n; i++) {
 	arg->button[i] = button[i];
 	arg->label[i] = label[i];
