@@ -310,7 +310,9 @@ int main(int argc, char **argv) {
 		memset(vote_results, 0, sizeof(vote_results));
 		do {
 			recvfrom(sock_fd, buf, len, 0, (struct sockaddr *) &target, &target_size);
-		} while (msg->type != MSGTYPE_VOTE);
+		} while ((msg->type != MSGTYPE_VOTE)
+							|| (target.sin_addr.s_addr != room.mafia->target.sin_addr.s_addr)
+						 	|| (target.sin_port != room.mafia->target.sin_port));
 		vote_results[msg->buf[0]]++;
 
 		/*
