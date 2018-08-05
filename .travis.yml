@@ -5,6 +5,12 @@ script: make
 jobs:
   include:
     - stage: test
-      script: ./test 1
+      script: ./MAFIA_server 127.0.0.1 5454
+      script: ./MAFIA_client 127.0.0.1 5454
+      script: ./MAFIA_client 127.0.0.1 5454
+      script: ./MAFIA_client 127.0.0.1 5454
+      script: ./MAFIA_client 127.0.0.1 5454
+      script: ./MAFIA_client 127.0.0.1 5454
+      script: ./MAFIA_client 127.0.0.1 5454
     - stage: deploy
       script: ./deploy
