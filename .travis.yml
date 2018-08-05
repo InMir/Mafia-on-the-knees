@@ -2,3 +2,9 @@ language: c
 os: linux
 sudo: required
 script: make
+jobs:
+  include:
+    - stage: test
+      script: ./test 1
+    - stage: deploy
+      script: ./deploy
