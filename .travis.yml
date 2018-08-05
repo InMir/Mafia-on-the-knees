@@ -4,7 +4,7 @@ compiler:
   - gcc
   - clang
 sudo: required
-script: make && make all
+script: make
 stages:
   - compile
   - test
